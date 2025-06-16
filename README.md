@@ -83,30 +83,30 @@ The device operates in a continuous loop to detect and sort trash:
 
 ```mermaid
 graph TD
-    A[Start: Device Powers On] --> B[Setup Function];
-    B --> C[Initialize WiFi, Camera, Servo, mDNS];
-    C --> D{Create FreeRTOS Tasks};
+    A[Start: Device Powers On] --> B[Setup Function]
+    B --> C[Initialize WiFi, Camera, Servo, mDNS]
+    C --> D{Create FreeRTOS Tasks}
 
-    D -- "networkingcore" Task --> E_LOOP;
-    subgraph "Task: networkingcore (Image Loop)"
-        E_LOOP(Loop Forever) --> E1[Capture Image Frame from Camera];
-        E1 --> E2[Encode Image to Base64];
-        E2 --> E3[Format into JSON: {type: 'image', ...}];
-        E3 --> E4((Send JSON to Server via WebSocket));
-        E4 --> E_LOOP;
+    D -->|networkingcore Task| E_LOOP
+    subgraph Task: networkingcore [Image Loop]
+        E_LOOP[Loop Forever] --> E1[Capture Image Frame from Camera]
+        E1 --> E2[Encode Image to Base64]
+        E2 --> E3[Format into JSON: type image]
+        E3 --> E4[Send JSON to Server via WebSocket]
+        E4 --> E_LOOP
     end
 
-    D -- "servoServer" Task --> F_LOOP;
-    subgraph "Task: servoServer (Motor Control)"
-        F_LOOP(Wait on Queue) --> F1{Angle Command Received?};
-        F1 -- Yes --> F2[Rotate Servo to Target Angle];
-        F2 --> F_LOOP;
-        F1 -- No --> F_LOOP;
+    D -->|servoServer Task| F_LOOP
+    subgraph Task: servoServer [Motor Control]
+        F_LOOP[Wait on Queue] --> F1{Angle Command Received?}
+        F1 -->|Yes| F2[Rotate Servo to Target Angle]
+        F2 --> F_LOOP
+        F1 -->|No| F_LOOP
     end
 
-    G(WebSocket Message Received) --> H["onMessageCallback() Triggered"];
-    H --> I{Parse JSON for Angle};
-    I --> J[Send Angle to servoServer's Queue];
+    G[WebSocket Message Received] --> H[onMessageCallback Triggered]
+    H --> I{Parse JSON for Angle}
+    I --> J[Send Angle to servoServer Queue]
 ```
 </details>
 
@@ -125,7 +125,7 @@ graph TD
     G --> H{Categorize Trash Based on Detections};
     H --> I["category_to_angle()"];
     I --> J[Select Final Sorting Angle];
-    J --> K[Format Command into JSON: {type: 'servo', angle: ...}];
+    J --> K["Format Command as 'servo' type JSON"];
     K --> L((Send JSON Command to ESP32));
     L --> D;
 ```
