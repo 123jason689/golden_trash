@@ -66,3 +66,6 @@ Guide to setup your own device.
 9. Plug in the device using powerbrick (or with usb connection)
 
 10. If connected successfuly you will hear a bleeping noise.
+
+Documentation / simulation video (in Indonesian):
+https://drive.google.com/file/d/1V-xNg7HTjrDbDp9XOzyCG-_occJgqBsg/view?usp=drivesdk
