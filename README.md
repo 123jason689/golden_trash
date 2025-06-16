@@ -1,9 +1,12 @@
 # Golden Trash: AI-Powered Smart Dumpster 🗑️✨
 
-[][platform-link]
-[][framework-link]
-[][language-link]
-[](https://www.google.com/search?q=%23)
+[![Platform][platform-badge]][platform-link]
+[![Framework][framework-badge]][framework-link]
+[![Language][language-badge]][language-link]
+[![Python][python-badge]][python-link]
+[![Quart][quart-badge]][quart-link]
+[![PyTorch][pytorch-badge]][pytorch-link]
+[![YOLOv5][yolo-badge]][yolo-link]
 
 > An intelligent, AI-powered dumpster that automatically sorts trash into different categories. This project leverages an ESP32-CAM for image capture, a YOLOv5 model for real-time inference, and a Python-based WebSocket server to orchestrate the system.
 
@@ -24,20 +27,20 @@ This repository contains all the necessary code for the embedded device (microco
 
 ## 📸 Showcase
 
-\<table align="center"\>
-\<tr\>
-\<td align="center"\>
-\<img src="[suspicious link removed]" alt="The completed Golden Trash device" width="260"\>
-\<br\>
-\<sub\>\<b\>Project Showcase\</b\>\</sub\>
-\</td\>
-\<td align="center"\>
-\<img src="[suspicious link removed]" alt="Electronic circuit scheme of the device" width="260"\>
-\<br\>
-\<sub\>\<b\>Circuit Scheme\</b\>\</sub\>
-\</td\>
-\</tr\>
-\</table\>
+<table align="center">
+<tr>
+<td align="center">
+<img src="images/device.jpg" alt="The completed Golden Trash device" width="260">
+<br>
+<sub><b>Project Showcase</b></sub>
+</td>
+<td align="center">
+<img src="images/scheme.jpg" alt="Electronic circuit scheme of the device" width="260">
+<br>
+<sub><b>Circuit Scheme</b></sub>
+</td>
+</tr>
+</table>
 
 -----
 
@@ -54,7 +57,7 @@ This repository contains all the necessary code for the embedded device (microco
   * **Platform:** [PlatformIO][platform-link]
   * **Framework:** [Arduino][framework-link]
   * **Server Backend:** [Python][python-link] with [Quart][quart-link] (an ASGI web framework)
-  * **AI Model:** [PyTorch][pytorch-link] with [YOLOv5s][yolo-link]
+  * **AI Model:** [PyTorch][pytorch-link] with [YOLOv5][yolo-link]
   * **Key Libraries:**
       * `ArduinoWebsockets` & `ESP32Servo` for device control.
       * `ArduinoJson` for data serialization.
@@ -67,7 +70,7 @@ This repository contains all the necessary code for the embedded device (microco
 
 The device operates in a continuous loop to detect and sort trash:
 
-1.  **Image Capture:** The `ESP32-CAM` captures a video stream. When an object is detected (in a future implementation) or continuously, it sends frames to the server.
+1.  **Image Capture:** The `ESP32-CAM` captures a video stream. It continuously sends frames to the server.
 2.  **Data Transmission:** Each frame is Base64 encoded and sent to the Python WebSocket server over the local Wi-Fi network.
 3.  **AI Inference:** The server receives the frame, decodes it, and passes it to the `YOLOv5` model for classification.
 4.  **Categorization:** The model's output is used to determine the trash category (Plastic, Degradable, etc.). The server then calculates the correct angle for the sorting mechanism.
@@ -75,31 +78,68 @@ The device operates in a continuous loop to detect and sort trash:
 6.  **Sorting:** The ESP32 commands the servo motor to turn to the designated angle, directing the falling trash into the appropriate bin.
 7.  **Monitoring:** The server streams the annotated video frames to a web interface, where the user can see the system in action.
 
-\<details\>
-\<summary\>\<strong\>System Flowchart\</strong\>\</summary\>
+<details>
+<summary><strong>System Flowchart</strong></summary>
 
 ```mermaid
 graph TD
-    A(Start: System Ready) --> B[ESP32 Captures Image Frame];
-    B --> C[Encode Image to Base64];
-    C --> D[Send Image to Server via WebSocket];
-    D --> E{Python Server};
-    E --> F[Decode Base64 Image];
-    F --> G[Perform YOLOv5 Inference];
-    G --> H{Categorize Trash};
-    H -- Plastic --> I[Angle = 270°];
-    H -- Degradable --> J[Angle = 180°];
-    H -- Metal/Electronics --> K[Angle = 90°];
-    H -- Other --> L[Angle = 0°];
-    I --> M[Send Angle to ESP32];
-    J --> M;
-    K --> M;
-    L --> M;
-    M --> N[ESP32 Rotates Servo to Angle];
-    N --> A;
-```
+    subgraph ESP32 Device (Client)
+        style ESP32 Device (Client) fill:#DDEEFF,stroke:#333,stroke-width:2px
 
-\</details\>
+        A_INIT[Setup: Init WiFi, Camera, mDNS] --> A_TASKS[Create FreeRTOS Tasks];
+
+        subgraph Task: networkingcore (Image Capture & Sending)
+            direction TB
+            B1(Looping...) --> B2[Capture Image Frame];
+            B2 --> B3[Encode Image to Base64 String];
+            B3 --> B4["Format Data into a JSON Packet"];
+            B4 --> B5((Send JSON via WebSocket));
+        end
+
+        subgraph Task: servoServer (Motor Control)
+            direction TB
+            C1(Awaiting Command...) --> C2{Receives Angle from Queue?};
+            C2 -- Yes --> C3[control_servo() to rotate motor];
+            C3 --> C1;
+        end
+
+        A_TASKS --> B1;
+        A_TASKS --> C1;
+
+        D_RECV((Receive WebSocket Message)) --> D_MSG["onMessageCallback: Parse Angle from JSON"];
+        D_MSG --> D_Q["Send Angle to servoServer Task Queue"];
+    end
+
+    subgraph Python Server (Backend)
+        style Python Server (Backend) fill:#FFF2DD,stroke:#333,stroke-width:2px
+
+        E_INIT[Start Quart App & WebSocket Server] --> E_CONN[Accept ESP32 Connection];
+
+        subgraph AI Inference & Logic
+            direction TB
+            F1(Receives JSON with Base64 Image) --> F2[Decode Base64 to OpenCV Image];
+            F2 --> F3[Run YOLOv5 Model Inference];
+            F3 --> F4[Annotate Image with Bounding Boxes];
+            F4 --> F5((Store Annotated Image for Web View));
+            F3 --> F6{Extract Detection Classes};
+            F6 --> G1["category_to_angle() Logic"];
+            G1 --> G2[Select Final Sorting Angle];
+            G2 --> G3["Format Command into a JSON Packet"];
+            G3 --> G4((Send JSON Command to ESP32));
+        end
+        
+        subgraph Web Interface
+             H1["User navigates to /img"] --> H2[Serve Stored Annotated Image];
+        end
+
+        E_CONN -- Spawns Handler --> F1;
+        E_INIT -- Provides Route --> H1;
+    end
+
+    B5 -- WebSocket: Image Data --> F1;
+    G4 -- WebSocket: Angle Command --> D_RECV;
+```
+</details>
 
 -----
 
@@ -108,11 +148,11 @@ graph TD
 ### Prerequisites
 
 1.  Install [Visual Studio Code](https://code.visualstudio.com/).
-2.  Install the [PlatformIO IDE extension][platform-link] in VS Code.
-3.  Install [Python 3.8+][python-link].
+2.  Install the [PlatformIO IDE extension](https://platformio.org/platformio-ide) in VS Code.
+3.  Install [Python 3.8+](https://www.python.org/).
 4.  Clone this repository.
 
-### 1\. Server Setup (`Python Websocket server/`)
+### 1. Server Setup (`Python Websocket server/`)
 
 1.  **Navigate to Server Directory:**
     ```bash
@@ -122,7 +162,7 @@ graph TD
     ```bash
     pip install -r requirements.txt
     ```
-3.  **Download AI Model:** Download the `yolov5s.pt` model weights from the [YOLOv5 repository](https://github.com/ultralytics/yolov5) and place it in the server directory.
+3.  **Download AI Model:** Download the `yolov5s.pt` model weights from the [YOLOv5 repository][yolo-link] and place it in the server directory.
 4.  **Configure Environment:**
       * Create a `.env` file in the server directory.
       * Set the `WEBSOCKET_AND_HTTP_PORT` (e.g., `8756`).
@@ -133,7 +173,7 @@ graph TD
     ```
     Note the server's local IPv4 address by running `ipconfig` (Windows) or `ifconfig`/`ip addr` (Linux/macOS).
 
-### 2\. Microcontroller Setup (`Main_AutoTrashcan_Project/`)
+### 2. Microcontroller Setup (`Main_AutoTrashcan_Project/`)
 
 1.  **Open Project:** Open the `Main_AutoTrashcan_Project` folder in VS Code with the PlatformIO extension installed.
 2.  **Configure Credentials:**
@@ -143,7 +183,7 @@ graph TD
           * `WIFI_PASSWORD`: Your Wi-Fi password.
           * `SERVER_STATIC_IP`: The IPv4 address of your server from the previous step.
           * `WEBSOCKET_PORT`: The port number from your server's `.env` file.
-        > **Note:** The server and the ESP32 must be on the same local network.
+    > **Note:** The server and the ESP32 must be on the same local network.
 3.  **Build and Upload:**
       * Connect your ESP32-WROVER-E device via USB.
       * Use the PlatformIO toolbar (or the command palette `Ctrl+Shift+P`) to:
@@ -151,12 +191,12 @@ graph TD
         2.  **Upload** the firmware to the device (`PlatformIO: Upload`).
 4.  **Monitor (Optional):** Open the PlatformIO Serial Monitor (`PlatformIO: Monitor`) to see debug messages and confirm it connects to your server.
 
-### 3\. Final Steps
+### 3. Final Steps
 
 1.  With the Python server running, power on the ESP32 device.
 2.  You should hear a beeping sound indicating a successful connection.
 3.  Navigate to your server's address in a web browser (e.g., `http://<your-server-ip>:8756`) to view the monitoring interface.
-4.  You're all set\! The smart dumpster is now operational.
+4.  You're all set! The smart dumpster is now operational.
 
 -----
 
@@ -164,13 +204,20 @@ graph TD
 
   * **Full Demo Video (in Indonesian):** [Watch on Google Drive](https://drive.google.com/file/d/1V-xNg7HTjrDbDp9XOzyCG-_occJgqBsg/view?usp=drivesdk)
 
-[]: #
-[platform-link]: https://www.google.com/search?q=%5Bhttps://platformio.org/%5D\(https://platformio.org/\)
-[]: #
-[framework-link]: https://www.google.com/search?q=%5Bhttps://www.arduino.cc/%5D\(https://www.arduino.cc/\)
-[]: #
-[]: #
-[python-link]: https://www.google.com/search?q=%5Bhttps://www.python.org/%5D\(https://www.python.org/\)
-[quart-link]: https://www.google.com/search?q=%5Bhttps://pgjones.gitlab.io/quart/%5D\(https://pgjones.gitlab.io/quart/\)
-[pytorch-link]: https://www.google.com/search?q=%5Bhttps://pytorch.org/%5D\(https://pytorch.org/\)
-[yolo-link]: https://www.google.com/search?q=%5Bhttps://github.com/ultralytics/yolov5%5D\(https://github.com/ultralytics/yolov5\)
+<!-- Badges -->
+[platform-badge]: https://img.shields.io/badge/Platform-PlatformIO-orange.svg
+[framework-badge]: https://img.shields.io/badge/Framework-Arduino-00979D.svg
+[language-badge]: https://img.shields.io/badge/Language-C%2B%2B-blue.svg
+[python-badge]: https://img.shields.io/badge/Python-3776AB.svg?logo=python&logoColor=white
+[quart-badge]: https://img.shields.io/badge/Quart-4A92A7.svg
+[pytorch-badge]: https://img.shields.io/badge/PyTorch-EE4C2C.svg?logo=pytorch&logoColor=white
+[yolo-badge]: https://img.shields.io/badge/YOLOv5-0052C8.svg
+
+<!-- Links -->
+[platform-link]: https://platformio.org/
+[framework-link]: https://www.arduino.cc/
+[language-link]: https://isocpp.org/
+[python-link]: https://www.python.org/
+[quart-link]: https://quart.palletsprojects.com/
+[pytorch-link]: https://pytorch.org/
+[yolo-link]: https://github.com/ultralytics/yolov5
