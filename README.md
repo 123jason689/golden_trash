@@ -82,62 +82,44 @@ The device operates in a continuous loop to detect and sort trash:
 <summary><strong>System Flowchart</strong></summary>
 
 ```mermaid
-graph TD
-    subgraph ESP32 Device (Client)
-        style ESP32 Device (Client) fill:#DDEEFF,stroke:#333,stroke-width:2px
+graph LR
+    subgraph ESP32 Device
+        direction TB
+        A_INIT[Setup: Init WiFi, Camera, mDNS] --> A_TASKS[Create FreeRTOS Tasks for Networking & Servo];
+        A_TASKS --> B_LOOP[Enter Capture-Send Loop];
 
-        A_INIT[Setup: Init WiFi, Camera, mDNS] --> A_TASKS[Create FreeRTOS Tasks];
-
-        subgraph Task: networkingcore (Image Capture & Sending)
-            direction TB
-            B1(Looping...) --> B2[Capture Image Frame];
-            B2 --> B3[Encode Image to Base64 String];
-            B3 --> B4["Format Data into a JSON Packet"];
-            B4 --> B5((Send JSON via WebSocket));
-        end
-
-        subgraph Task: servoServer (Motor Control)
-            direction TB
-            C1(Awaiting Command...) --> C2{Receives Angle from Queue?};
-            C2 -- Yes --> C3[control_servo() to rotate motor];
-            C3 --> C1;
-        end
-
-        A_TASKS --> B1;
-        A_TASKS --> C1;
-
-        D_RECV((Receive WebSocket Message)) --> D_MSG["onMessageCallback: Parse Angle from JSON"];
-        D_MSG --> D_Q["Send Angle to servoServer Task Queue"];
+        B_LOOP --> B1[Capture Image Frame];
+        B1 --> B2[Encode to Base64];
+        B2 --> B3[Format into JSON Packet];
+        B3 --> B4(Send JSON to Server);
     end
 
-    subgraph Python Server (Backend)
-        style Python Server (Backend) fill:#FFF2DD,stroke:#333,stroke-width:2px
-
-        E_INIT[Start Quart App & WebSocket Server] --> E_CONN[Accept ESP32 Connection];
-
-        subgraph AI Inference & Logic
-            direction TB
-            F1(Receives JSON with Base64 Image) --> F2[Decode Base64 to OpenCV Image];
-            F2 --> F3[Run YOLOv5 Model Inference];
-            F3 --> F4[Annotate Image with Bounding Boxes];
-            F4 --> F5((Store Annotated Image for Web View));
-            F3 --> F6{Extract Detection Classes};
-            F6 --> G1["category_to_angle() Logic"];
-            G1 --> G2[Select Final Sorting Angle];
-            G2 --> G3["Format Command into a JSON Packet"];
-            G3 --> G4((Send JSON Command to ESP32));
-        end
-        
-        subgraph Web Interface
-             H1["User navigates to /img"] --> H2[Serve Stored Annotated Image];
-        end
-
-        E_CONN -- Spawns Handler --> F1;
-        E_INIT -- Provides Route --> H1;
+    subgraph Python Server
+        direction TB
+        S_INIT[Start Quart & WebSocket Server] --> S_WAIT[Wait for Connection];
+        S_WAIT --> S_RECV(Receive Image JSON);
+        S_RECV --> S1[Decode Base64 to Image];
+        S1 --> S2[Run YOLOv5 Inference];
+        S2 --> S3{Categorize Trash};
+        S3 -- Plastic --> S4[Angle: 270];
+        S3 -- Degradable --> S5[Angle: 180];
+        S3 -- Metal/Electronics --> S6[Angle: 90];
+        S3 -- Unidentified --> S7[Angle: 0];
+        S4 --> S8[Format Command JSON];
+        S5 --> S8;
+        S6 --> S8;
+        S7 --> S8;
+        S8 --> S_SEND(Send Angle Command);
     end
 
-    B5 -- WebSocket: Image Data --> F1;
-    G4 -- WebSocket: Angle Command --> D_RECV;
+    subgraph ESP32 Device
+        C_RECV(Receive Angle Command) --> C1[Parse Angle from JSON];
+        C1 --> C2[Send Angle to Servo Task];
+        C2 --> B_LOOP;
+    end
+
+    B4 -- WebSocket Data --> S_RECV;
+    S_SEND -- WebSocket Command --> C_RECV;
 ```
 </details>
 
